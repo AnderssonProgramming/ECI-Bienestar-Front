@@ -46,3 +46,7 @@ next-env.d.ts
 *.user
 *.userosscache
 *.sln.docstates
+/.vscode
+
+# JetBrains IDEs
+/.idea
