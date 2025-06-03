@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, act } from 'react';
+import { useRouter } from "next/router";
+import { all,find, del } from "../api/APIActivity"
 
 interface Actividad {
   id: string;
@@ -13,54 +15,42 @@ interface ActividadProcesada {
   borderColor: string;
 }
 
-interface ActividadSeleccionada {
-  nombre: string;
-  inicio: string;
-  fin: string;
-}
-
-interface Sesion {
-  inicio: string;
-  fin: string;
-  inicioIdx: number;
-  finIdx: number;
-}
-
-// Constantes movidas fuera del componente para evitar re-creación en cada render
-const diasSemana: string[] = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-const mapDiaSemana: Record<string, number> = { MONDAY: 0, TUESDAY: 1, WEDNESDAY: 2, THURSDAY: 3, FRIDAY: 4, SATURDAY: 5 };
-const colores = [
-  { color: 'bg-yellow-200', borderColor: 'border-l-4 border-yellow-500' },
-  { color: 'bg-purple-200', borderColor: 'border-l-4 border-purple-500' },
-  { color: 'bg-blue-200', borderColor: 'border-l-4 border-blue-500' },
-  { color: 'bg-green-200', borderColor: 'border-l-4 border-green-500' },
-  { color: 'bg-rose-200', borderColor: 'border-l-4 border-rose-500' },
-  { color: 'bg-orange-200', borderColor: 'border-l-4 border-orange-500' },
-  { color: 'bg-teal-200', borderColor: 'border-l-4 border-teal-500' },
-  { color: 'bg-indigo-200', borderColor: 'border-l-4 border-indigo-500' },
-];
-const horas: string[] = ['07:00', '08:30', '10:00', '11:30', '13:00', '14:30', '16:00', '17:30', '19:00'];
-
 const HorarioClasesOptimizado: React.FC = () => {
-  const [diaActual, setDiaActual] = useState<number>(0);
-  const [actividadSeleccionada, setActividadSeleccionada] = useState<ActividadSeleccionada | null>(null);
+  const router = useRouter();
+  const navegarA = (ruta:string) => {
+    router.push(ruta);
+  };
+
+  const [diaActual, setDiaActual] = useState(0);
+  const [actividadSeleccionada, setActividadSeleccionada] = useState<{ id:number, nombre: string; inicio: string; fin: string; } | null>(null);
   const [actividades, setActividades] = useState<ActividadProcesada[]>([]);
   const [horarios, setHorarios] = useState<[number, string, string, string][]>([]);
   const [actividadesRaw, setActividadesRaw] = useState<Actividad[]>([]);
-  const [cargando, setCargando] = useState<boolean>(true);
+  const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const tokenJWT: string = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEyMyIsInVzZXJOYW1lIjoiYWRtaW4iLCJlbWFpbCI6ImFkbWluQGVzY3VlbGFpbmcuZWR1LmNvIiwibmFtZSI6ImVsIGFkbWluIiwicm9sZSI6IkFETUlOIiwic3BlY2lhbHR5IjoibnVsbCIsImV4cCI6MTc0ODI2NTM1Mn0.IVBivb5A4v0iMok6cZyalcPWgUfXZZq1AhTt26V84Gg";
-  const linkAPI: string = "https://hadesback-app-c5fwbybjd0gnf0fx.canadacentral-01.azurewebsites.net";
+  const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  const mapDiaSemana = { MONDAY: 0, TUESDAY: 1, WEDNESDAY: 2, THURSDAY: 3, FRIDAY: 4, SATURDAY: 5 };
+  const colores = [
+    { color: 'bg-yellow-200', borderColor: 'border-l-4 border-yellow-500' },
+    { color: 'bg-purple-200', borderColor: 'border-l-4 border-purple-500' },
+    { color: 'bg-blue-200', borderColor: 'border-l-4 border-blue-500' },
+    { color: 'bg-green-200', borderColor: 'border-l-4 border-green-500' },
+    { color: 'bg-rose-200', borderColor: 'border-l-4 border-rose-500' },
+    { color: 'bg-orange-200', borderColor: 'border-l-4 border-orange-500' },
+    { color: 'bg-teal-200', borderColor: 'border-l-4 border-teal-500' },
+    { color: 'bg-indigo-200', borderColor: 'border-l-4 border-indigo-500' },
+  ];
+  const horas = ['07:00', '08:30', '10:00', '11:30', '13:00', '14:30', '16:00', '17:30', '19:00'];
 
-  const formatearHora = (hora: string): string => {
+  const formatearHora = (hora: string) => {
     const [h, m] = hora.split(':').map(Number);
     const hour12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
     const ampm = h >= 12 ? 'PM' : 'AM';
     return `${hour12}:${m.toString().padStart(2, '0')} ${ampm}`;
   };
 
-  const extraerHora = (timeStr: string): string => {
+  const extraerHora = (timeStr: string) => {
     if (!timeStr) return '';
     const hourStr = timeStr.includes('T') ? timeStr.split('T')[1].substring(0, 5) : timeStr.substring(0, 5);
     const [hours, minutes] = hourStr.split(':').map(Number);
@@ -69,18 +59,17 @@ const HorarioClasesOptimizado: React.FC = () => {
     return `${correctedHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   };
 
-  const fetchActividades = useCallback(async (): Promise<void> => {
+  const fetchActividades = async () => {
     setCargando(true);
     setError(null);
     try {
-      const response = await fetch(`${linkAPI}/api/activity/all`, { headers: { Authorization: tokenJWT } });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data: Actividad[] = await response.json();
+      const response = await all(null);
+      const data = response?.data;
       setActividadesRaw(data);
-      
-      const actividadesMap = new Map<string, ActividadProcesada>();
+
+      const actividadesMap = new Map();
       const horariosArray: [number, string, string, string][] = [];
-      
+
       data.forEach((actividad: Actividad) => {
         if (!actividadesMap.has(actividad.activityType)) {
           actividadesMap.set(actividad.activityType, {
@@ -89,9 +78,9 @@ const HorarioClasesOptimizado: React.FC = () => {
             ...colores[actividadesMap.size % colores.length]
           });
         }
-        
+
         actividad.days?.forEach(day => {
-          const diaIdx = mapDiaSemana[day.dayWeek];
+          const diaIdx = mapDiaSemana[day.dayWeek as keyof typeof mapDiaSemana];
           if (diaIdx !== undefined) {
             const inicio = extraerHora(day.startHour);
             const fin = extraerHora(day.endHour);
@@ -99,7 +88,7 @@ const HorarioClasesOptimizado: React.FC = () => {
           }
         });
       });
-      
+
       setActividades(Array.from(actividadesMap.values()));
       setHorarios(horariosArray);
     } catch {
@@ -107,9 +96,9 @@ const HorarioClasesOptimizado: React.FC = () => {
     } finally {
       setCargando(false);
     }
-  }, [tokenJWT, linkAPI]);
+  };
 
-  const buscarIndice = (timeStr: string): number => {
+  const buscarIndice = (timeStr: string) => {
     const idx = horas.indexOf(timeStr);
     if (idx !== -1) return idx;
     const [h, m] = timeStr.split(':').map(Number);
@@ -121,32 +110,30 @@ const HorarioClasesOptimizado: React.FC = () => {
     }, 0);
   };
 
-  const obtenerHorarios = (): Record<string, Sesion[]> => {
-    const resultado: Record<string, Sesion[]> = {};
-    horarios.filter(([dia]) => dia === diaActual).forEach(([, nombre, inicio, fin]) => {
+  const obtenerHorarios = () => {
+    const resultado: Record<string, any[]> = {};
+    horarios.filter(([dia]) => dia === diaActual).forEach(([_, nombre, inicio, fin]) => {
       const actividad = actividades.find(a => a.nombre === nombre);
       if (!actividad) return;
       if (!resultado[nombre]) resultado[nombre] = [];
-      
-      const inicioIdx = buscarIndice(inicio);
+
+      let inicioIdx = buscarIndice(inicio);
       let finIdx = buscarIndice(fin);
       if (finIdx <= inicioIdx) finIdx = inicioIdx + 1;
-      
+
       resultado[nombre].push({ inicio, fin, inicioIdx, finIdx });
     });
     return resultado;
   };
 
-  useEffect(() => { 
-    fetchActividades(); 
-  }, [fetchActividades]);
+  useEffect(() => { fetchActividades(); }, []);
 
-  const cambiarDia = (dir: number): void => {
+  const cambiarDia = (dir: number) => {
     setDiaActual((diaActual + dir + diasSemana.length) % diasSemana.length);
     setActividadSeleccionada(null);
   };
 
-  const verAsistencias = (nombre: string): void => {
+  const verAsistencias = (nombre: string) => {
     const actividad = actividadesRaw.find(act => act.activityType === nombre);
     if (actividad) console.log(`/asistencias/${actividad.id}`);
   };
@@ -202,7 +189,7 @@ const HorarioClasesOptimizado: React.FC = () => {
                         key={idx}
                         className={`${actividad.color} ${actividad.borderColor} cursor-pointer h-12 flex items-center justify-center text-xs font-medium hover:opacity-80`}
                         style={{ gridColumnStart: sesion.inicioIdx + 1, gridColumnEnd: `span ${sesion.finIdx - sesion.inicioIdx}` }}
-                        onClick={() => setActividadSeleccionada({ nombre: actividad.nombre, inicio: sesion.inicio, fin: sesion.fin })}
+                        onClick={() => setActividadSeleccionada({ id: actividad.id, nombre: actividad.nombre, inicio: sesion.inicio, fin: sesion.fin })}
                         title={`${actividad.nombre}: ${formatearHora(sesion.inicio)} - ${formatearHora(sesion.fin)}`}
                       >
                         {formatearHora(sesion.inicio)} - {formatearHora(sesion.fin)}
@@ -237,23 +224,55 @@ const HorarioClasesOptimizado: React.FC = () => {
           </div>
           <div className="flex space-x-2 mt-4">
             {['Ver asistencias', 'Editar', 'Borrar'].map(texto => (
-              <button 
-                key={texto}
-                onClick={() => texto === 'Ver asistencias' && verAsistencias(actividadSeleccionada.nombre)}
-                className="text-white px-3 py-1 rounded-md text-sm hover:opacity-90" 
-                style={{ backgroundColor: '#990000' }}
-              >
-                {texto}
-              </button>
-            ))}
+  <button
+    key={texto}
+    onClick={async ()=> {
+      if (texto === 'Ver asistencias') {
+        verAsistencias(actividadSeleccionada.nombre);
+      } else if (texto === 'Editar') {
+
+        const actividad = await find(
+          {"activityType": actividadSeleccionada.nombre},null
+        );
+        const act = actividad?.data[0];
+        if(act){
+          navegarA(`/clasesExtracurriculares/CEAdminActividades?id=${act.id}`);
+        }else{
+          navegarA(`/clasesExtracurriculares/CEAdminActividades`);
+        }
+
+      } else if (texto === 'Borrar') {
+        const actividad = await find(
+          {"activityType": actividadSeleccionada.nombre},null
+        );
+        const act = actividad?.data[0];
+
+
+        if(act){
+          del(act,null);
+        }
+      }
+
+    }}
+    className="text-white px-3 py-1 rounded-md text-sm hover:opacity-90"
+    style={{ backgroundColor: '#990000' }}
+  >
+    {texto}
+  </button>
+))}
+
           </div>
         </div>
       )}
 
       <div className="flex justify-end">
-        <button className="text-white px-4 py-2 rounded hover:opacity-90" style={{ backgroundColor: '#990000' }}>
-          Nueva actividad
-        </button>
+         <button
+      className="text-white px-4 py-2 rounded hover:opacity-90"
+      style={{ backgroundColor: '#990000' }}
+      onClick={() => router.push('/clasesExtracurriculares/CEAdminActividades')}
+    >
+      Nueva actividad
+    </button>
       </div>
     </div>
   );

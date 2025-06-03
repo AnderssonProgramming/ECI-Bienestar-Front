@@ -38,3 +38,23 @@
 button{
     cursor: pointer;
 }
+
+/*ALEJANDRO ESTUVO AQUI*/
+.scrollbar-custom {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-eci) transparent;
+}
+
+.scrollbar-custom::-webkit-scrollbar {
+  height: 1px;
+  width: 1px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb {
+  background-color: var(--color-eci);
+  border-radius: 9999px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-track {
+  background: transparent;
+}
