@@ -224,4 +224,4 @@ const SCPAdmin = () => {
   )
 }
 
-export default SCPAdmin
+export default SCPAdmin;
